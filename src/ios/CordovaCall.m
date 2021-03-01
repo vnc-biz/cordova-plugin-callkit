@@ -585,6 +585,28 @@ NSString* currentCallId;
 
 - (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type
 {
+
+// {
+//     aps =     {
+//         alert =         {
+//             body = "Incoming audio call";
+//             title = "Talal Waseem";
+//         };
+//         category = AUDIO;
+//         "content-available" = 1;
+//         sound = "incoming-call-loop.caf";
+//         "thread-id" = "";
+//     };
+//     callSignal = 1;
+//     "call_type" = audio;
+//     "chat_type" = invite;
+//     data = "{\"Caller\":{\"Username\":\"Talal Waseem\",\"ConnectionId\":\"b5b23ef3-857e-4fb2-9cea-169f32092879\"}}";
+//     "from_jid" = "talal.waseem@dev.vnc.de";
+//     "initiator_name" = "Talal Waseem";
+//     jitsiRoom = 72sjomnfjw;
+//     jitsiURL = "https://prod-a.bridge.vnclagoon.com/72sjomnfjw";
+// }
+
     NSDictionary *payloadDict = payload.dictionaryPayload[@"aps"];
     NSLog(@"[objC] didReceiveIncomingPushWithPayload: %@", payload.dictionaryPayload);
 
