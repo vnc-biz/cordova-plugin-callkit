@@ -15,6 +15,7 @@ NSMutableDictionary *callbackIds;
 NSDictionary* pendingCallFromRecents;
 BOOL monitorAudioRouteChange = NO;
 BOOL enableDTMF = NO;
+NSString* currentCallId;
 
 - (void)pluginInitialize
 {
@@ -137,6 +138,8 @@ BOOL enableDTMF = NO;
 {
     CDVPluginResult* pluginResult = nil;
     NSString* proposedRingtoneName = [command.arguments objectAtIndex:0];
+    
+    NSLog(@"[objC] setRingtone: %@", proposedRingtoneName);
 
     if (proposedRingtoneName == nil || [proposedRingtoneName length] == 0) {
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Ringtone Name Can't Be Empty"];
@@ -182,6 +185,13 @@ BOOL enableDTMF = NO;
     NSString* callName = [command.arguments objectAtIndex:0];
     NSString* callId = hasId?[command.arguments objectAtIndex:1]:callName;
     NSUUID *callUUID = [[NSUUID alloc] init];
+    
+    if (currentCallId != nil && [currentCallId length] > 0){
+        [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Skip VoIP for exist call"] callbackId:command.callbackId];
+        return;
+    }
+    
+    currentCallId = callId;
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callName forKey:[command.arguments objectAtIndex:1]];
@@ -511,6 +521,7 @@ BOOL enableDTMF = NO;
             }
         }
     }
+    currentCallId = nil;
     monitorAudioRouteChange = NO;
     [action fulfill];
     //[action fail];
@@ -587,12 +598,18 @@ BOOL enableDTMF = NO;
     [results setObject:message forKey:@"function"];
     [results setObject:data forKey:@"extra"];
     
+    ringtone = @"res/sounds/incoming-call-loop.caf"; //TODO add custom ringtone
+    [self updateProviderConfig];
+    
     @try {
         NSError* error;
         NSDictionary* json = [NSJSONSerialization JSONObjectWithData:[data dataUsingEncoding:NSUTF8StringEncoding] options:kNilOptions error:&error];
         
         NSObject* caller = [json objectForKey:@"Caller"];
-        NSArray* args = [NSArray arrayWithObjects:[caller valueForKey:@"Username"], [caller valueForKey:@"ConnectionId"], nil];
+        NSArray* args = [NSArray arrayWithObjects:
+                         [caller valueForKey:@"Username"],
+                         [caller valueForKey:@"ConnectionId"],
+                         nil];
         
         CDVInvokedUrlCommand* newCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:args callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
         
