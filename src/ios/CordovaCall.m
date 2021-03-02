@@ -25,7 +25,7 @@ NSString* currentCallId;
     providerConfiguration.maximumCallGroups = 1;
     providerConfiguration.maximumCallsPerCallGroup = 1;
     NSMutableSet *handleTypes = [[NSMutableSet alloc] init];
-    [handleTypes addObject:@(CXHandleTypePhoneNumber)];
+    [handleTypes addObject:@(CXHandleTypeGeneric)];
     providerConfiguration.supportedHandleTypes = handleTypes;
     providerConfiguration.supportsVideo = YES;
     if (@available(iOS 11.0, *)) {
@@ -73,7 +73,7 @@ NSString* currentCallId;
         providerConfiguration.iconTemplateImageData = iconData;
     }
     NSMutableSet *handleTypes = [[NSMutableSet alloc] init];
-    [handleTypes addObject:@(CXHandleTypePhoneNumber)];
+    [handleTypes addObject:@(CXHandleTypeGeneric)];
     providerConfiguration.supportedHandleTypes = handleTypes;
     providerConfiguration.supportsVideo = hasVideo;
     if (@available(iOS 11.0, *)) {
@@ -180,34 +180,36 @@ NSString* currentCallId;
 
 - (void)receiveCall:(CDVInvokedUrlCommand*)command
 {
+    NSLog(@"[objC] [receiveCall] args: %@", command.arguments);
     BOOL hasId = ![[command.arguments objectAtIndex:1] isEqual:[NSNull null]];
     CDVPluginResult* pluginResult = nil;
-    NSString* callName = [command.arguments objectAtIndex:0];
-    NSString* callId = hasId?[command.arguments objectAtIndex:1]:callName;
-    NSUUID *callUUID = [[NSUUID alloc] init];
+    NSString* callerName = [command.arguments objectAtIndex:0];
+    NSUUID *callUUID = [[NSUUID alloc] initWithUUIDString:[command.arguments objectAtIndex:1]];
+    NSString* callerId = [command.arguments objectAtIndex:2];
+    BOOL isVideoCall = [[command.arguments objectAtIndex:3] boolValue];
     
     if (currentCallId != nil && [currentCallId length] > 0){
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Skip VoIP for exist call"] callbackId:command.callbackId];
         return;
     }
     
-    currentCallId = callId;
+    currentCallId = callerId;
 
     if (hasId) {
-        [[NSUserDefaults standardUserDefaults] setObject:callName forKey:[command.arguments objectAtIndex:1]];
+        [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
 
-    if (callName != nil && [callName length] > 0) {
-        CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:callId];
+    if (callerName != nil && [callerName length] > 0) {
+        CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:callerId];
         CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
         callUpdate.remoteHandle = handle;
-        callUpdate.hasVideo = hasVideo;
-        callUpdate.localizedCallerName = callName;
+        callUpdate.hasVideo = isVideoCall;
+        callUpdate.localizedCallerName = callerName;
         callUpdate.supportsGrouping = NO;
         callUpdate.supportsUngrouping = NO;
         callUpdate.supportsHolding = NO;
-        callUpdate.supportsDTMF = enableDTMF;
+        callUpdate.supportsDTMF = NO;
 
         [self.provider reportNewIncomingCallWithUUID:callUUID update:callUpdate completion:^(NSError * _Nullable error) {
             if(error == nil) {
@@ -240,7 +242,7 @@ NSString* currentCallId;
     }
 
     if (callName != nil && [callName length] > 0) {
-        CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:callId];
+        CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:callId];
         CXStartCallAction *startCallAction = [[CXStartCallAction alloc] initWithCallUUID:callUUID handle:handle];
         startCallAction.contactIdentifier = callName;
         startCallAction.video = hasVideo;
@@ -404,7 +406,7 @@ NSString* currentCallId;
     NSString* callID = notification.object[@"callId"];
     NSString* callName = notification.object[@"callName"];
     NSUUID *callUUID = [[NSUUID alloc] init];
-    CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypePhoneNumber value:callID];
+    CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:callID];
     CXStartCallAction *startCallAction = [[CXStartCallAction alloc] initWithCallUUID:callUUID handle:handle];
     startCallAction.video = [notification.object[@"isVideo"] boolValue]?YES:NO;
     startCallAction.contactIdentifier = callName;
@@ -585,33 +587,42 @@ NSString* currentCallId;
 
 - (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type
 {
-
-// {
-//     aps =     {
-//         alert =         {
-//             body = "Incoming audio call";
-//             title = "Talal Waseem";
-//         };
-//         category = AUDIO;
-//         "content-available" = 1;
-//         sound = "incoming-call-loop.caf";
-//         "thread-id" = "";
-//     };
-//     callSignal = 1;
-//     "call_type" = audio;
-//     "chat_type" = invite;
-//     data = "{\"Caller\":{\"Username\":\"Talal Waseem\",\"ConnectionId\":\"b5b23ef3-857e-4fb2-9cea-169f32092879\"}}";
-//     "from_jid" = "talal.waseem@dev.vnc.de";
-//     "initiator_name" = "Talal Waseem";
-//     jitsiRoom = 72sjomnfjw;
-//     jitsiURL = "https://prod-a.bridge.vnclagoon.com/72sjomnfjw";
-// }
-
+    
+    // {
+    //     aps =     {
+    //         alert =         {
+    //             body = "Incoming audio call";
+    //             title = "Talal Waseem";
+    //         };
+    //         category = AUDIO;
+    //         "content-available" = 1;
+    //         sound = "incoming-call-loop.caf";
+    //         "thread-id" = "";
+    //     };
+    //     callSignal = 1;
+    //     "call_type" = audio;
+    //     "chat_type" = invite;
+    //     data = "{\"Caller\":{\"Username\":\"Talal Waseem\",\"ConnectionId\":\"b5b23ef3-857e-4fb2-9cea-169f32092879\"}}";
+    //     "from_jid" = "talal.waseem@dev.vnc.de";
+    //     "initiator_name" = "Talal Waseem";
+    //     jitsiRoom = 72sjomnfjw;
+    //     jitsiURL = "https://prod-a.bridge.vnclagoon.com/72sjomnfjw";
+    // }
+    
     NSDictionary *payloadDict = payload.dictionaryPayload[@"aps"];
     NSLog(@"[objC] didReceiveIncomingPushWithPayload: %@", payload.dictionaryPayload);
+    
+    NSString *sound = payloadDict[@"sound"];
 
     NSString *message = payloadDict[@"alert"];
     NSLog(@"[objC] received VoIP message: %@", message);
+    
+    NSString *callType = payload.dictionaryPayload[@"call_type"];
+    NSString *chatType = payload.dictionaryPayload[@"chat_type"];
+    NSString *fromJid = payload.dictionaryPayload[@"from_jid"];
+    NSString *initiatorName = payload.dictionaryPayload[@"initiator_name"];
+    NSString *jitsiRoom = payload.dictionaryPayload[@"jitsiRoom"];
+    NSString *jitsiURL = payload.dictionaryPayload[@"jitsiURL"];
     
     NSString *data = payload.dictionaryPayload[@"data"];
     NSLog(@"[objC] received data: %@", data);
@@ -620,20 +631,28 @@ NSString* currentCallId;
     [results setObject:message forKey:@"function"];
     [results setObject:data forKey:@"extra"];
     
-    ringtone = @"res/sounds/incoming-call-loop.caf"; //TODO add custom ringtone
+    ringtone = sound;
+    NSLog(@"[objC] ringtone: %@", ringtone);
+    
+    hasVideo = [callType isEqualToString:@"video"];
+    NSLog(@"[objC] callType: %@", callType);
+    
     [self updateProviderConfig];
     
     @try {
         NSError* error;
         NSDictionary* json = [NSJSONSerialization JSONObjectWithData:[data dataUsingEncoding:NSUTF8StringEncoding] options:kNilOptions error:&error];
         
-        NSObject* caller = [json objectForKey:@"Caller"];
-        NSArray* args = [NSArray arrayWithObjects:
-                         [caller valueForKey:@"Username"],
-                         [caller valueForKey:@"ConnectionId"],
-                         nil];
+        NSObject *caller = [json objectForKey:@"Caller"];
+        NSMutableArray *args = [NSMutableArray array];
+        [args addObject:[caller valueForKey:@"Username"]];
+        [args addObject:[caller valueForKey:@"ConnectionId"]];
+        [args addObject:fromJid];
+        [args addObject:[NSNumber numberWithBool:[callType isEqualToString:@"video"]]];
         
         CDVInvokedUrlCommand* newCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:args callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
+        
+        NSLog(@"[objC] [pushRegistry] receiveCall: %@", args);
         
         [self receiveCall:newCommand];
     }

@@ -36,26 +36,38 @@ exports.setVideo = function(value, success, error) {
     }
 };
 
-exports.receiveCall = function(from, id, success, error) {
-    if(typeof id == "function") {
-      error = success;
-      success = id;
-      id = undefined;
-    } else if(id) {
-      id = id.toString();
-    }
-    exec(success, error, "CordovaCall", "receiveCall", [from, id]);
+/**
+ * 
+ * @param {string} callerName - The name of the person you want to get a call from
+ * @param {string} callerId - The user id that allows you to identify the person's name
+ * @param {string} callId - The unique identifier for the call, should be a UUID string
+ * @param {int} callType - The type of call, 1 - for video, 0 - for audio
+ * @param {function} success - A callback that gets executed if the incoming call is successful
+ * @param {function} error - A callback that gets executed if the incoming call fails
+ */
+exports.receiveCall = function(callerName, callerId, callId, callType, success, error) {
+  if(!callerName || !callerId || !callId){
+    error("Parameters: callerName, callerId, callId, isVideo - can nor be null or empty");
+  } else {
+    exec(success, error, "CordovaCall", "receiveCall", [callerName, callerId, callId, callType]);
+  }
 };
 
-exports.sendCall = function(to, id, success, error) {
-    if(typeof id == "function") {
-      error = success;
-      success = id;
-      id = undefined;
-    } else if(id) {
-      id = id.toString();
+/**
+ * 
+ * @param {string} receiverName - The name of the person you want to call
+ * @param {string} receiverId - The user id that allows you to identify the person's name
+ * @param {string} callId - The unique identifier for the call, should be a UUID string
+ * @param {int} callType - The type of call, 1 - for video, 0 - for audio
+ * @param {function} success - A callback that gets executed if the outgoing call is successful
+ * @param {function} error - A callback that gets executed if the outgoing call fails
+ */
+exports.sendCall = function(receiverName, receiverId, callId, callType, success, error) {
+    if(!receiverName || !receiverId || !callId){
+      error("Parameters: receiverName, receiverId, callId, callType - can nor be null or empty");
+    } else {
+      exec(success, error, "CordovaCall", "sendCall", [receiverName, receiverId, callId, callType]);
     }
-    exec(success, error, "CordovaCall", "sendCall", [to, id]);
 };
 
 exports.connectCall = function(success, error) {
