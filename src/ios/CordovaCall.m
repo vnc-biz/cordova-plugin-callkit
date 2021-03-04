@@ -15,7 +15,7 @@ NSMutableDictionary *callbackIds;
 NSDictionary* pendingCallFromRecents;
 BOOL monitorAudioRouteChange = NO;
 BOOL enableDTMF = NO;
-NSString* currentCallId;
+NSMutableDictionary *currentCallData;
 
 - (void)pluginInitialize
 {
@@ -180,20 +180,49 @@ NSString* currentCallId;
 
 - (void)receiveCall:(CDVInvokedUrlCommand*)command
 {
+    
+//    [args addObject:[caller valueForKey:@"Username"]];
+//    [args addObject:[caller valueForKey:@"ConnectionId"]];
+//    [args addObject:fromJid];
+//    [args addObject:[NSNumber numberWithBool:[callType isEqualToString:@"video"]]];
+//    [args addObject:callSignal];
+//    [args addObject:callType];
+//    [args addObject:chatType];
+//    [args addObject:initiatorName];
+//    [args addObject:jitsiRoom];
+//    [args addObject:jitsiURL];
+    
     NSLog(@"[objC] [receiveCall] args: %@", command.arguments);
     BOOL hasId = ![[command.arguments objectAtIndex:1] isEqual:[NSNull null]];
-    CDVPluginResult* pluginResult = nil;
-    NSString* callerName = [command.arguments objectAtIndex:0];
-    NSUUID *callUUID = [[NSUUID alloc] initWithUUIDString:[command.arguments objectAtIndex:1]];
-    NSString* callerId = [command.arguments objectAtIndex:2];
+    CDVPluginResult *pluginResult = nil;
+    NSString *callerName = [command.arguments objectAtIndex:0];
+    NSString *callId = [command.arguments objectAtIndex:1];
+    NSUUID *callUUID = [[NSUUID alloc] initWithUUIDString:callId];
+    NSString *callerId = [command.arguments objectAtIndex:2];
     BOOL isVideoCall = [[command.arguments objectAtIndex:3] boolValue];
+    NSNumber *callSignal = [command.arguments objectAtIndex:4];
+    NSString *callType = [command.arguments objectAtIndex:5];
+    NSString *chatType = [command.arguments objectAtIndex:6];
+    NSString *initiatorName = [command.arguments objectAtIndex:7];
+    NSString *jitsiRoom = [command.arguments objectAtIndex:8];
+    NSString *jitsiURL = [command.arguments objectAtIndex:9];
+    NSString *sound = [command.arguments objectAtIndex:10];
     
-    if (currentCallId != nil && [currentCallId length] > 0){
+    if ([self hasActiveCall]){
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Skip VoIP for exist call"] callbackId:command.callbackId];
         return;
     }
     
-    currentCallId = callerId;
+    currentCallData = [NSMutableDictionary dictionaryWithCapacity:9];
+    [currentCallData setObject:callSignal forKey:@"callSignal"];
+    [currentCallData setObject:callType forKey:@"call_type"];
+    [currentCallData setObject:chatType forKey:@"chat_type"];
+    [currentCallData setObject:initiatorName forKey:@"initiator_name"];
+    [currentCallData setObject:jitsiRoom forKey:@"jitsiRoom"];
+    [currentCallData setObject:jitsiURL forKey:@"jitsiURL"];
+    [currentCallData setObject:callId forKey:@"call_id"];
+    [currentCallData setObject:callerId forKey:@"from_jid"];
+    [currentCallData setObject:sound forKey:@"sound"];
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
@@ -220,7 +249,7 @@ NSString* currentCallId;
         }];
         for (id callbackId in callbackIds[@"receiveCall"]) {
             CDVPluginResult* pluginResult = nil;
-            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"receiveCall event called successfully"];
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:currentCallData];
             [pluginResult setKeepCallbackAsBool:YES];
             [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
         }
@@ -231,21 +260,24 @@ NSString* currentCallId;
 
 - (void)sendCall:(CDVInvokedUrlCommand*)command
 {
-    BOOL hasId = ![[command.arguments objectAtIndex:1] isEqual:[NSNull null]];
-    NSString* callName = [command.arguments objectAtIndex:0];
-    NSString* callId = hasId?[command.arguments objectAtIndex:1]:callName;
-    NSUUID *callUUID = [[NSUUID alloc] init];
+    BOOL hasId = ![[command.arguments objectAtIndex:2] isEqual:[NSNull null]];
+    NSString *receiverName = [command.arguments objectAtIndex:0];
+    NSString *receiverId = [command.arguments objectAtIndex:1];
+    NSString *callId = [command.arguments objectAtIndex:2];
+    NSUUID *callUUID = hasId?[[NSUUID alloc] initWithUUIDString:callId] : [[NSUUID alloc] init];
+    BOOL isVideoCall = [[command.arguments objectAtIndex:3] boolValue];
+    
 
     if (hasId) {
-        [[NSUserDefaults standardUserDefaults] setObject:callName forKey:[command.arguments objectAtIndex:1]];
+        [[NSUserDefaults standardUserDefaults] setObject:receiverName forKey:[command.arguments objectAtIndex:1]];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
 
-    if (callName != nil && [callName length] > 0) {
-        CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:callId];
+    if (receiverId != nil && [receiverId length] > 0) {
+        CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:receiverId];
         CXStartCallAction *startCallAction = [[CXStartCallAction alloc] initWithCallUUID:callUUID handle:handle];
-        startCallAction.contactIdentifier = callName;
-        startCallAction.video = hasVideo;
+        startCallAction.contactIdentifier = receiverId;
+        startCallAction.video = isVideoCall;
         CXTransaction *transaction = [[CXTransaction alloc] initWithAction:startCallAction];
         [self.callController requestTransaction:transaction completion:^(NSError * _Nullable error) {
             if (error == nil) {
@@ -293,6 +325,8 @@ NSString* currentCallId;
     } else {
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No call exists for you to connect"];
     }
+    
+    [currentCallData removeAllObjects];
 
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
@@ -462,11 +496,14 @@ NSString* currentCallId;
     callUpdate.supportsGrouping = NO;
     callUpdate.supportsUngrouping = NO;
     callUpdate.supportsHolding = NO;
-    callUpdate.supportsDTMF = enableDTMF;
+    callUpdate.supportsDTMF = NO;
     
     [self.provider reportCallWithUUID:action.callUUID updated:callUpdate];
     [action fulfill];
-    NSDictionary *callData = @{@"callName":action.contactIdentifier, @"callId": action.handle.value, @"isVideo": action.video?@YES:@NO, @"message": @"sendCall event called successfully"};
+    NSDictionary *callData = @{@"callName":action.contactIdentifier,
+                               @"callId": action.handle.value,
+                               @"isVideo": action.video?@YES:@NO,
+                               @"message": @"sendCall event called successfully"};
     for (id callbackId in callbackIds[@"sendCall"]) {
         CDVPluginResult* pluginResult = nil;
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:callData];
@@ -496,7 +533,7 @@ NSString* currentCallId;
     [action fulfill];
     for (id callbackId in callbackIds[@"answer"]) {
         CDVPluginResult* pluginResult = nil;
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"answer event called successfully"];
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:currentCallData];
         [pluginResult setKeepCallbackAsBool:YES];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
     }
@@ -510,20 +547,21 @@ NSString* currentCallId;
         if(calls[0].hasConnected) {
             for (id callbackId in callbackIds[@"hangup"]) {
                 CDVPluginResult* pluginResult = nil;
-                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"hangup event called successfully"];
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:currentCallData];
                 [pluginResult setKeepCallbackAsBool:YES];
                 [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
             }
         } else {
             for (id callbackId in callbackIds[@"reject"]) {
                 CDVPluginResult* pluginResult = nil;
-                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"reject event called successfully"];
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:currentCallData];
                 [pluginResult setKeepCallbackAsBool:YES];
                 [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
             }
         }
     }
-    currentCallId = nil;
+    
+    [currentCallData removeAllObjects];
     monitorAudioRouteChange = NO;
     [action fulfill];
     //[action fail];
@@ -617,6 +655,7 @@ NSString* currentCallId;
     NSString *message = payloadDict[@"alert"];
     NSLog(@"[objC] received VoIP message: %@", message);
     
+    NSNumber *callSignal = payload.dictionaryPayload[@"callSignal"];
     NSString *callType = payload.dictionaryPayload[@"call_type"];
     NSString *chatType = payload.dictionaryPayload[@"chat_type"];
     NSString *fromJid = payload.dictionaryPayload[@"from_jid"];
@@ -649,6 +688,13 @@ NSString* currentCallId;
         [args addObject:[caller valueForKey:@"ConnectionId"]];
         [args addObject:fromJid];
         [args addObject:[NSNumber numberWithBool:[callType isEqualToString:@"video"]]];
+        [args addObject:callSignal];
+        [args addObject:callType];
+        [args addObject:chatType];
+        [args addObject:initiatorName];
+        [args addObject:jitsiRoom];
+        [args addObject:jitsiURL];
+        [args addObject:sound];
         
         CDVInvokedUrlCommand* newCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:args callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
         
@@ -664,6 +710,13 @@ NSString* currentCallId;
         [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:self.VoIPPushCallbackId];
     }
+}
+
+-(BOOL) hasActiveCall
+{
+    return currentCallData != nil
+    && [currentCallData valueForKey:@"call_id"] != nil
+    && [[currentCallData valueForKey:@"call_id"] length] > 0;
 }
 
 @end
