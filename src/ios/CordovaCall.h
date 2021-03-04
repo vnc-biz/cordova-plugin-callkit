@@ -39,4 +39,6 @@
 - (void)receiveCallFromRecents:(NSNotification *) notification;
 - (void)handleAudioRouteChange:(NSNotification *) notification;
 
+- (BOOL) hasActiveCall
+
 @end
