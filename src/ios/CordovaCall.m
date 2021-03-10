@@ -191,6 +191,7 @@ NSMutableDictionary *currentCallData;
 //    [args addObject:initiatorName];
 //    [args addObject:jitsiRoom];
 //    [args addObject:jitsiURL];
+//    [args addObject:conferenceId];
     
     NSLog(@"[objC] [receiveCall] args: %@", command.arguments);
     BOOL hasId = ![[command.arguments objectAtIndex:1] isEqual:[NSNull null]];
@@ -207,6 +208,7 @@ NSMutableDictionary *currentCallData;
     NSString *jitsiRoom = [command.arguments objectAtIndex:8];
     NSString *jitsiURL = [command.arguments objectAtIndex:9];
     NSString *sound = [command.arguments objectAtIndex:10];
+    NSString *conferenceId = [command.arguments objectAtIndex:11];
     
     if ([self hasActiveCall]){
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Skip VoIP for exist call"] callbackId:command.callbackId];
@@ -223,6 +225,7 @@ NSMutableDictionary *currentCallData;
     [currentCallData setObject:callId forKey:@"call_id"];
     [currentCallData setObject:callerId forKey:@"from_jid"];
     [currentCallData setObject:sound forKey:@"sound"];
+    [currentCallData setObject:conferenceId forKey:@"conferenceId"];
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
@@ -645,6 +648,7 @@ NSMutableDictionary *currentCallData;
     //     "initiator_name" = "Talal Waseem";
     //     jitsiRoom = 72sjomnfjw;
     //     jitsiURL = "https://prod-a.bridge.vnclagoon.com/72sjomnfjw";
+    //     conferenceId = "ihor.khomenko#vnc.biz,kapil.nadiyapara#dev.vnc.de";
     // }
     
     NSDictionary *payloadDict = payload.dictionaryPayload[@"aps"];
@@ -662,6 +666,7 @@ NSMutableDictionary *currentCallData;
     NSString *initiatorName = payload.dictionaryPayload[@"initiator_name"];
     NSString *jitsiRoom = payload.dictionaryPayload[@"jitsiRoom"];
     NSString *jitsiURL = payload.dictionaryPayload[@"jitsiURL"];
+    NSString *conferenceId = payload.dictionaryPayload[@"conferenceId"];
     
     NSString *data = payload.dictionaryPayload[@"data"];
     NSLog(@"[objC] received data: %@", data);
@@ -695,6 +700,7 @@ NSMutableDictionary *currentCallData;
         [args addObject:jitsiRoom];
         [args addObject:jitsiURL];
         [args addObject:sound];
+        [args addObject:conferenceId];
         
         CDVInvokedUrlCommand* newCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:args callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
         
