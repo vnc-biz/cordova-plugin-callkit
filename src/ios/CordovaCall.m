@@ -16,6 +16,7 @@ NSDictionary* pendingCallFromRecents;
 BOOL monitorAudioRouteChange = NO;
 BOOL enableDTMF = NO;
 NSMutableDictionary *currentCallData;
+NSMutableDictionary *voipTokenData = NULL;
 
 - (void)pluginInitialize
 {
@@ -599,18 +600,26 @@ NSMutableDictionary *currentCallData;
 // PushKit
 - (void)init:(CDVInvokedUrlCommand*)command
 {
-  self.VoIPPushCallbackId = command.callbackId;
-  NSLog(@"[objC] callbackId: %@", self.VoIPPushCallbackId);
+    self.VoIPPushCallbackId = command.callbackId;
+    NSLog(@"[objC][init] callbackId: %@", self.VoIPPushCallbackId);
+    
+    if (voipTokenData != NULL) {
+        NSLog(@"[objC][init] voipTokenData: %@", voipTokenData);
+        
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:voipTokenData];
+        [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]]; //[pluginResult setKeepCallbackAsBool:YES];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.VoIPPushCallbackId];
+    }
 }
 
 - (void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type{
     if([credentials.token length] == 0) {
-        NSLog(@"[objC] No device token!");
-        return;
+        NSLog(@"[objC][pushRegistry] No device token!");
+        return; 
     }
 
     //http://stackoverflow.com/a/9372848/534755
-    NSLog(@"[objC] Device token: %@", credentials.token);
+    NSLog(@"[objC][pushRegistry] Device token: %@", credentials.token);
     const unsigned *tokenBytes = [credentials.token bytes];
     NSString *sToken = [NSString stringWithFormat:@"%08x%08x%08x%08x%08x%08x%08x%08x",
                          ntohl(tokenBytes[0]), ntohl(tokenBytes[1]), ntohl(tokenBytes[2]),
@@ -623,7 +632,14 @@ NSMutableDictionary *currentCallData;
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:results];
     [pluginResult setKeepCallback:[NSNumber numberWithBool:YES]]; //[pluginResult setKeepCallbackAsBool:YES];
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:self.VoIPPushCallbackId];
+    
+    NSLog(@"[objC][pushRegistry] callbackId: %@", self.VoIPPushCallbackId);
+    
+    if (self.VoIPPushCallbackId != NULL) {
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.VoIPPushCallbackId];
+    } else {
+        voipTokenData = results;
+    }
 }
 
 - (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type
