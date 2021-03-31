@@ -352,40 +352,58 @@ NSMutableDictionary *voipTokenData = NULL;
 
 - (void)mute:(CDVInvokedUrlCommand*)command
 {
-    CDVPluginResult* pluginResult = nil;
-//    AVAudioSession *sessionInstance = [AVAudioSession sharedInstance];
-//    if(sessionInstance.isInputGainSettable) {
-//      BOOL success = [sessionInstance setInputGain:0.0 error:nil];
-//      if(success) {
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Muted Successfully"];
-//      } else {
-//        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"An error occurred"];
-//      }
-//    } else {
-//      pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Not muted because this device does not allow changing inputGain"];
-//    }
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    NSLog(@"[objC] [mute]");
+    if (self.hasActiveCall) {
+        NSLog(@"[objC] [mute] has active call");
+        CXSetMutedCallAction *muteCallAction = [[CXSetMutedCallAction alloc] initWithCallUUID:[[NSUUID alloc] initWithUUIDString:[currentCallData valueForKey:@"call_id"]]  muted:true];
+        CXTransaction *transaction = [[CXTransaction alloc] initWithAction:muteCallAction];
+        [self.callController requestTransaction:transaction completion:^(NSError * _Nullable error) {
+            CDVPluginResult* pluginResult = nil;
+            if (error == nil) {
+                
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Muted Successfully"];
+            } else {
+                NSLog(@"[objC] [mute] Error : %@", [error localizedDescription]);
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"An error occurred"];
+            }
+            
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        }];
+    } else {
+        NSLog(@"[objC] [mute] no active calls");
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No calls for performing action [mute]"];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }
 }
 
 - (void)unmute:(CDVInvokedUrlCommand*)command
 {
-    CDVPluginResult* pluginResult = nil;
-//    AVAudioSession *sessionInstance = [AVAudioSession sharedInstance];
-//    if(sessionInstance.isInputGainSettable) {
-//      BOOL success = [sessionInstance setInputGain:1.0 error:nil];
-//      if(success) {
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Muted Successfully"];
-//      } else {
-//        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"An error occurred"];
-//      }
-//    } else {
-//      pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Not unmuted because this device does not allow changing inputGain"];
-//    }
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    NSLog(@"[objC] [unmute]");
+    if (self.hasActiveCall) {
+        NSLog(@"[objC] [unmute] has active call");
+        CXSetMutedCallAction *unMuteCallAction = [[CXSetMutedCallAction alloc] initWithCallUUID:[[NSUUID alloc] initWithUUIDString:[currentCallData valueForKey:@"call_id"]] muted:false];
+        CXTransaction *transaction = [[CXTransaction alloc] initWithAction:unMuteCallAction];
+        [self.callController requestTransaction:transaction completion:^(NSError * _Nullable error) {
+            CDVPluginResult* pluginResult = nil;
+            if (error == nil) {
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Unmuted Successfully"];
+            } else {
+                NSLog(@"[objC] [unmute] Error : %@", [error localizedDescription]);
+                pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"An error occurred"];
+            }
+            
+            [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        }];
+    } else {
+        NSLog(@"[objC] [unmute] no active calls");
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No calls for performing action [unmute]"];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }
 }
 
 - (void)speakerOn:(CDVInvokedUrlCommand*)command
 {
+    // TODO VT do nothing, caouse it already realized on app side
     CDVPluginResult* pluginResult = nil;
 //    AVAudioSession *sessionInstance = [AVAudioSession sharedInstance];
 //    BOOL success = [sessionInstance overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker error:nil];
@@ -399,6 +417,7 @@ NSMutableDictionary *voipTokenData = NULL;
 
 - (void)speakerOff:(CDVInvokedUrlCommand*)command
 {
+    // TODO VT do nothing, caouse it already realized on app side
     CDVPluginResult* pluginResult = nil;
 //    AVAudioSession *sessionInstance = [AVAudioSession sharedInstance];
 //    BOOL success = [sessionInstance overrideOutputAudioPort:AVAudioSessionPortOverrideNone error:nil];
@@ -461,14 +480,16 @@ NSMutableDictionary *voipTokenData = NULL;
 {
     NSLog(@"[objC] [handleAudioRouteChange]");
     if(monitorAudioRouteChange) {
-        NSNumber* reasonValue = notification.userInfo[@"AVAudioSessionRouteChangeReasonKey"];
-        AVAudioSessionRouteDescription* previousRouteKey = notification.userInfo[@"AVAudioSessionRouteChangePreviousRouteKey"];
-        NSArray* outputs = [previousRouteKey outputs];
+        AVAudioSessionRouteDescription *currentRoute = [[AVAudioSession sharedInstance] currentRoute];
+        NSArray* outputs = [currentRoute outputs];
+        
         NSLog(@"[objC] [handleAudioRouteChange] outputs: %@", outputs);
         if([outputs count] > 0) {
             AVAudioSessionPortDescription *output = outputs[0];
             NSLog(@"[objC] [handleAudioRouteChange] output[0] %@", output);
-            if(![output.portType isEqual: @"Speaker"] && [reasonValue isEqual:@4]) {
+            NSLog(@"[objC] [handleAudioRouteChange] output.portType %@", output.portType);
+            
+            if([output.portType isEqual: @"Speaker"]) {
                 for (id callbackId in callbackIds[@"speakerOn"]) {
                     NSLog(@"[objC] [handleAudioRouteChange] notify app 'speakerOn'");
                     CDVPluginResult* pluginResult = nil;
@@ -476,7 +497,7 @@ NSMutableDictionary *voipTokenData = NULL;
                     [pluginResult setKeepCallbackAsBool:YES];
                     [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
                 }
-            } else if([output.portType isEqual: @"Speaker"] && [reasonValue isEqual:@3]) {
+            } else {
                 for (id callbackId in callbackIds[@"speakerOff"]) {
                     NSLog(@"[objC] [handleAudioRouteChange] notify app 'speakerOff'");
                     CDVPluginResult* pluginResult = nil;
