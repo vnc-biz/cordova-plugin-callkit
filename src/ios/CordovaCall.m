@@ -748,7 +748,11 @@ NSMutableDictionary *voipTokenData = NULL;
         
         NSLog(@"[objC] [pushRegistry] receiveCall: %@", args);
         
-        [self receiveCall:newCommand];
+        if ([[UIApplication sharedApplication] applicationState] == UIApplicationStateActive) {
+            NSLog(@"[objC] [pushRegistry] App in foreground, so ignore VoIP push");
+        } else {
+            [self receiveCall:newCommand];
+        }
     }
     @catch (NSException *exception) {
        NSLog(@"[objC] error: %@", exception.reason);
