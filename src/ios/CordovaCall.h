@@ -40,5 +40,6 @@
 - (void)handleAudioRouteChange:(NSNotification *) notification;
 
 - (BOOL)hasActiveCall;
+- (void)postRequestWithSubUrl:(NSString *)suburl params:(NSDictionary *)params;
 
 @end
