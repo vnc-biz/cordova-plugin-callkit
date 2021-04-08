@@ -188,7 +188,7 @@ NSMutableDictionary *voipTokenData = NULL;
 //    [args addObject:[NSNumber numberWithBool:[callType isEqualToString:@"video"]]];
 //    [args addObject:callSignal];
 //    [args addObject:callType];
-//    [args addObject:chatType];
+//    [args addObject:callSignalType];
 //    [args addObject:initiatorName];
 //    [args addObject:jitsiRoom];
 //    [args addObject:jitsiURL];
@@ -204,7 +204,7 @@ NSMutableDictionary *voipTokenData = NULL;
     BOOL isVideoCall = [[command.arguments objectAtIndex:3] boolValue];
     NSNumber *callSignal = [command.arguments objectAtIndex:4];
     NSString *callType = [command.arguments objectAtIndex:5];
-    NSString *chatType = [command.arguments objectAtIndex:6];
+    NSString *callSignalType = [command.arguments objectAtIndex:6];
     NSString *initiatorName = [command.arguments objectAtIndex:7];
     NSString *jitsiRoom = [command.arguments objectAtIndex:8];
     NSString *jitsiURL = [command.arguments objectAtIndex:9];
@@ -219,7 +219,7 @@ NSMutableDictionary *voipTokenData = NULL;
     currentCallData = [NSMutableDictionary dictionaryWithCapacity:9];
     [currentCallData setObject:callSignal forKey:@"callSignal"];
     [currentCallData setObject:callType forKey:@"call_type"];
-    [currentCallData setObject:chatType forKey:@"chat_type"];
+    [currentCallData setObject:callSignalType forKey:@"call_signal_type"];
     [currentCallData setObject:initiatorName forKey:@"initiator_name"];
     [currentCallData setObject:jitsiRoom forKey:@"jitsiRoom"];
     [currentCallData setObject:jitsiURL forKey:@"jitsiURL"];
@@ -227,6 +227,7 @@ NSMutableDictionary *voipTokenData = NULL;
     [currentCallData setObject:callerId forKey:@"from_jid"];
     [currentCallData setObject:sound forKey:@"sound"];
     [currentCallData setObject:conferenceId forKey:@"conferenceId"];
+    [currentCallData setObject:[NSString stringWithFormat:@"%@_%@", initiatorName, callerId] forKey:@"initiatorId"];
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
@@ -590,8 +591,9 @@ NSMutableDictionary *voipTokenData = NULL;
             }
         }
     }
-    
-    [self rejectCall:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
+    if([self hasActiveCall]){
+        [self rejectCall:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
+    }
     [currentCallData removeAllObjects];
     monitorAudioRouteChange = NO;
     [action fulfill];
@@ -685,7 +687,7 @@ NSMutableDictionary *voipTokenData = NULL;
     //     };
     //     callSignal = 1;
     //     "call_type" = audio;
-    //     "chat_type" = invite;
+    //     "call_signal_type" = invite;
     //     data = "{\"Caller\":{\"Username\":\"Talal Waseem\",\"ConnectionId\":\"b5b23ef3-857e-4fb2-9cea-169f32092879\"}}";
     //     "from_jid" = "talal.waseem@dev.vnc.de";
     //     "initiator_name" = "Talal Waseem";
@@ -702,9 +704,10 @@ NSMutableDictionary *voipTokenData = NULL;
     NSString *message = payloadDict[@"alert"];
     NSNumber *callSignal = payload.dictionaryPayload[@"callSignal"];
     NSString *callType = payload.dictionaryPayload[@"call_type"];
-    NSString *chatType = payload.dictionaryPayload[@"chat_type"];
-    NSString *fromJid = payload.dictionaryPayload[@"from_jid"];
+    NSString *fromJid = payload.dictionaryPayload[@"jid"];
+    NSString *callName = payload.dictionaryPayload[@"name"];
     NSString *initiatorName = payload.dictionaryPayload[@"initiator_name"];
+    NSString *initiatorJid = payload.dictionaryPayload[@"initiator_jid"];
     NSString *jitsiRoom = payload.dictionaryPayload[@"jitsiRoom"];
     NSString *jitsiURL = payload.dictionaryPayload[@"jitsiURL"];
     NSString *conferenceId = payload.dictionaryPayload[@"conferenceId"];
@@ -716,12 +719,20 @@ NSMutableDictionary *voipTokenData = NULL;
     [results setObject:data forKey:@"extra"];
     
     @try {
-        if ([callSignalType isEqualToString:@"joined-self"] || [callSignalType isEqualToString:@"rejected-self"]) {
+        if ([callSignalType isEqualToString:@"leave"]) {
+            NSString *initiatorId = [NSString stringWithFormat:@"%@_%@", initiatorName, fromJid];
+            if (self.hasActiveCall && [initiatorId isEqualToString:[currentCallData valueForKey:@"initiatorId"]]) {
+                CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
+                [self endCall:endCallCommand];
+            }
+            return;
+        } else if ([callSignalType isEqualToString:@"joined-self"] || [callSignalType isEqualToString:@"rejected-self"]) {
             if (self.hasActiveCall) {
                 CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
                 [self endCall:endCallCommand];
-                return;
+                
             }
+            return;
         }
         
         ringtone = sound;
@@ -739,7 +750,7 @@ NSMutableDictionary *voipTokenData = NULL;
         [args addObject:[NSNumber numberWithBool:[callType isEqualToString:@"video"]]];
         [args addObject:callSignal];
         [args addObject:callType];
-        [args addObject:chatType];
+        [args addObject:callSignalType];
         [args addObject:initiatorName];
         [args addObject:jitsiRoom];
         [args addObject:jitsiURL];
