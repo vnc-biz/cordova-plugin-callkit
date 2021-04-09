@@ -28,4 +28,15 @@
     [[NSNotificationCenter defaultCenter] postNotificationName:@"RecentsCallNotification" object:intentInfo];
     return YES;
 }
+
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler
+{
+    NSLog(@"[AppDelegateCordovaCall][didReceiveRemoteNotification] userInfo: %@", userInfo);
+    NSString *callSignalType = [userInfo valueForKey:@"call_signal_type"];
+    if(callSignalType != nil){
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"CallSignalNotification" object:userInfo];
+    }
+    
+    completionHandler(UIBackgroundFetchResultNewData);
+}
 @end

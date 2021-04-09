@@ -49,6 +49,7 @@ NSMutableDictionary *voipTokenData = NULL;
     [callbackIds setObject:[NSMutableArray array] forKey:@"DTMF"];
     //allows user to make call from recents
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(receiveCallFromRecents:) name:@"RecentsCallNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(receiveCallSignalEvent:) name:@"CallSignalNotification" object:nil];
     //detect Audio Route Changes to make speakerOn and speakerOff event handlers
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(handleAudioRouteChange:) name:AVAudioSessionRouteChangeNotification object:nil];
 
@@ -477,6 +478,28 @@ NSMutableDictionary *voipTokenData = NULL;
     }];
 }
 
+- (void)receiveCallSignalEvent:(NSNotification *) notification
+{
+    NSLog(@"[CordovaCall][receiveCallSignalEvent] data: %@", notification.object);
+    
+    NSString *fromJid = notification.object[@"jid"];
+    NSString *initiatorName = notification.object[@"initiator_name"];
+    NSString *callSignalType = notification.object[@"call_signal_type"];
+    
+    if ([callSignalType isEqualToString:@"leave"]) {
+        NSString *initiatorId = [NSString stringWithFormat:@"%@_%@", initiatorName, fromJid];
+        if (self.hasActiveCall && [initiatorId isEqualToString:[currentCallData valueForKey:@"initiatorId"]]) {
+            CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
+            [self endCall:endCallCommand];
+        }
+    } else if ([callSignalType isEqualToString:@"joined-self"] || [callSignalType isEqualToString:@"rejected-self"]) {
+        if (self.hasActiveCall) {
+            CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
+            [self endCall:endCallCommand];
+        }
+    }
+}
+
 - (void)handleAudioRouteChange:(NSNotification *) notification
 {
     NSLog(@"[CordovaCall][handleAudioRouteChange]");
@@ -719,22 +742,6 @@ NSMutableDictionary *voipTokenData = NULL;
     [results setObject:data forKey:@"extra"];
     
     @try {
-        if ([callSignalType isEqualToString:@"leave"]) {
-            NSString *initiatorId = [NSString stringWithFormat:@"%@_%@", initiatorName, fromJid];
-            if (self.hasActiveCall && [initiatorId isEqualToString:[currentCallData valueForKey:@"initiatorId"]]) {
-                CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
-                [self endCall:endCallCommand];
-            }
-            return;
-        } else if ([callSignalType isEqualToString:@"joined-self"] || [callSignalType isEqualToString:@"rejected-self"]) {
-            if (self.hasActiveCall) {
-                CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
-                [self endCall:endCallCommand];
-                
-            }
-            return;
-        }
-        
         ringtone = sound;
         hasVideo = [callType isEqualToString:@"video"];
         [self updateProviderConfig];
