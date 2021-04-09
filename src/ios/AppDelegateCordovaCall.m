@@ -7,6 +7,7 @@
 
 - (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray *restorableObjects))restorationHandler
 {
+    NSLog(@"[AppDelegateCordovaCall][continueUserActivity]");
     INInteraction *interaction = userActivity.interaction;
     INIntent *intent = interaction.intent;
     BOOL isVideo = [intent isKindOfClass:[INStartVideoCallIntent class]];

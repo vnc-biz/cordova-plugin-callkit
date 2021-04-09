@@ -6,7 +6,7 @@
 
 @synthesize VoIPPushCallbackId, VoIPPushClassName, VoIPPushMethodName;
 
-BOOL hasVideo = NO;
+BOOL hasVideo = YES;
 NSString* appName;
 NSString* ringtone;
 NSString* icon;
@@ -229,6 +229,7 @@ NSMutableDictionary *voipTokenData = NULL;
     [currentCallData setObject:sound forKey:@"sound"];
     [currentCallData setObject:conferenceId forKey:@"conferenceId"];
     [currentCallData setObject:[NSString stringWithFormat:@"%@_%@", initiatorName, callerId] forKey:@"initiatorId"];
+    [currentCallData setObject:@"pending" forKey:@"callState"];
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
@@ -310,6 +311,10 @@ NSMutableDictionary *voipTokenData = NULL;
     }
 
     [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    
+    if ([self hasActiveCall]){
+        [currentCallData setObject:@"accepted" forKey:@"callState"];
+    }
 }
 
 - (void)endCall:(CDVInvokedUrlCommand*)command
@@ -493,7 +498,7 @@ NSMutableDictionary *voipTokenData = NULL;
             [self endCall:endCallCommand];
         }
     } else if ([callSignalType isEqualToString:@"joined-self"] || [callSignalType isEqualToString:@"rejected-self"]) {
-        if (self.hasActiveCall) {
+        if (self.hasActiveCall && [@"pending" isEqualToString:[currentCallData valueForKey:@"callState"]]) {
             CDVInvokedUrlCommand *endCallCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:[NSMutableArray array] callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
             [self endCall:endCallCommand];
         }
@@ -590,6 +595,10 @@ NSMutableDictionary *voipTokenData = NULL;
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:currentCallData];
         [pluginResult setKeepCallbackAsBool:YES];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:callbackId];
+    }
+
+    if ([self hasActiveCall]){
+        [currentCallData setObject:@"accepted" forKey:@"callState"];
     }
     //[action fail];
 }
@@ -743,7 +752,6 @@ NSMutableDictionary *voipTokenData = NULL;
     
     @try {
         ringtone = sound;
-        hasVideo = [callType isEqualToString:@"video"];
         [self updateProviderConfig];
         
         NSError* error;
