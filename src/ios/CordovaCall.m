@@ -599,6 +599,7 @@ NSMutableDictionary *voipTokenData = NULL;
 
     if ([self hasActiveCall]){
         [currentCallData setObject:@"accepted" forKey:@"callState"];
+        [self sendAcceptCallSignal:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
     }
     //[action fail];
 }
@@ -624,7 +625,7 @@ NSMutableDictionary *voipTokenData = NULL;
         }
     }
     if([self hasActiveCall]){
-        [self rejectCall:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
+        [self sendRejectCallSignal:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
     }
     [currentCallData removeAllObjects];
     monitorAudioRouteChange = NO;
@@ -799,21 +800,28 @@ NSMutableDictionary *voipTokenData = NULL;
     && [[currentCallData valueForKey:@"call_id"] length] > 0;
 }
 
-- (void)rejectCall:(NSString *)callType confid:(NSString *)confid target:(NSString *)target
+- (void)sendRejectCallSignal:(NSString *)callType confid:(NSString *)confid target:(NSString *)target
 {
     NSDictionary *params = @{
         @"messagetext": @"REJECTED_CALL",
         @"reject": callType,
+        @"self": @true,
         @"confid": confid,
         @"target": target
     };
     [self postRequestWithSubUrl:@"xmpp-rest" params:params];
-    
-    // 1-1
-    // {"messagetext":"REJECTED_CALL","reject":"video","confid":"bob#dev2.zimbra-vnc.de,ihor.khomenko#vnc.biz","target":"ihor.khomenko@vnc.biz"}
-    
-    // group
-    //    {“messagetext”:“REJECTED_CALL”,“reject”:“video”,“confid”:“grvall@conference.dev2.zimbra-vnc.de”,“target”:“grvall@conference.dev2.zimbra-vnc.de”}
+}
+
+- (void)sendAcceptCallSignal:(NSString *)callType confid:(NSString *)confid target:(NSString *)target
+{
+    NSDictionary *params = @{
+        @"messagetext": @"JOIN_CALL",
+        @"join": callType,
+        @"self": @true,
+        @"confid": confid,
+        @"target": target
+    };
+    [self postRequestWithSubUrl:@"xmpp-rest" params:params];
 }
 
 - (void)postRequestWithSubUrl:(NSString *)suburl params:(NSDictionary *)params
