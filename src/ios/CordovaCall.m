@@ -211,6 +211,7 @@ NSMutableDictionary *voipTokenData = NULL;
     NSString *jitsiURL = [command.arguments objectAtIndex:9];
     NSString *sound = [command.arguments objectAtIndex:10];
     NSString *conferenceId = [command.arguments objectAtIndex:11];
+    NSString *receiverJid = [command.arguments objectAtIndex:12];
     
     if ([self hasActiveCall]){
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Skip VoIP for exist call"] callbackId:command.callbackId];
@@ -230,6 +231,7 @@ NSMutableDictionary *voipTokenData = NULL;
     [currentCallData setObject:conferenceId forKey:@"conferenceId"];
     [currentCallData setObject:[NSString stringWithFormat:@"%@_%@", initiatorName, callerId] forKey:@"initiatorId"];
     [currentCallData setObject:@"pending" forKey:@"callState"];
+    [currentCallData setObject:receiverJid forKey:@"receiverJid"];
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
@@ -600,6 +602,7 @@ NSMutableDictionary *voipTokenData = NULL;
     if ([self hasActiveCall]){
         [currentCallData setObject:@"accepted" forKey:@"callState"];
         [self sendAcceptCallSignal:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
+        [self sendAcceptSelfCallSignal:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] receiverJid:[currentCallData valueForKey:@"receiverJid"]];
     }
     //[action fail];
 }
@@ -626,6 +629,7 @@ NSMutableDictionary *voipTokenData = NULL;
     }
     if([self hasActiveCall]){
         [self sendRejectCallSignal:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] target:[currentCallData valueForKey:@"from_jid"]];
+        [self sendRejectSelfCallSignal:[currentCallData valueForKey:@"call_type"] confid:[currentCallData valueForKey:@"conferenceId"] receiverJid:[currentCallData valueForKey:@"receiverJid"]];
     }
     [currentCallData removeAllObjects];
     monitorAudioRouteChange = NO;
@@ -727,6 +731,7 @@ NSMutableDictionary *voipTokenData = NULL;
     //     jitsiRoom = 72sjomnfjw;
     //     jitsiURL = "https://prod-a.bridge.vnclagoon.com/72sjomnfjw";
     //     conferenceId = "ihor.khomenko#vnc.biz,kapil.nadiyapara#dev.vnc.de";
+    //     "recipient_jid" = "nightwatch.test7@dev.vnc.de";
     // }
     
     NSDictionary *payloadDict = payload.dictionaryPayload[@"aps"];
@@ -741,6 +746,7 @@ NSMutableDictionary *voipTokenData = NULL;
     NSString *callName = payload.dictionaryPayload[@"name"];
     NSString *initiatorName = payload.dictionaryPayload[@"initiator_name"];
     NSString *initiatorJid = payload.dictionaryPayload[@"initiator_jid"];
+    NSString *receiverJid = payload.dictionaryPayload[@"recipient_jid"];
     NSString *jitsiRoom = payload.dictionaryPayload[@"jitsiRoom"];
     NSString *jitsiURL = payload.dictionaryPayload[@"jitsiURL"];
     NSString *conferenceId = payload.dictionaryPayload[@"conferenceId"];
@@ -772,6 +778,7 @@ NSMutableDictionary *voipTokenData = NULL;
         [args addObject:jitsiURL];
         [args addObject:sound];
         [args addObject:conferenceId];
+        [args addObject:receiverJid];
         
         CDVInvokedUrlCommand* newCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:args callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
         
@@ -805,9 +812,20 @@ NSMutableDictionary *voipTokenData = NULL;
     NSDictionary *params = @{
         @"messagetext": @"REJECTED_CALL",
         @"reject": callType,
-        @"self": @true,
         @"confid": confid,
         @"target": target
+    };
+    [self postRequestWithSubUrl:@"xmpp-rest" params:params];
+}
+
+- (void)sendRejectSelfCallSignal:(NSString *)callType confid:(NSString *)confid receiverJid:(NSString *)receiverJid
+{
+    NSDictionary *params = @{
+        @"messagetext": @"REJECTED_CALL",
+        @"reject": callType,
+        @"self": @true,
+        @"confid": confid,
+        @"target": receiverJid
     };
     [self postRequestWithSubUrl:@"xmpp-rest" params:params];
 }
@@ -817,9 +835,21 @@ NSMutableDictionary *voipTokenData = NULL;
     NSDictionary *params = @{
         @"messagetext": @"JOIN_CALL",
         @"join": callType,
-        @"self": @true,
         @"confid": confid,
         @"target": target
+    };
+    [self postRequestWithSubUrl:@"xmpp-rest" params:params];
+}
+
+
+- (void)sendAcceptSelfCallSignal:(NSString *)callType confid:(NSString *)confid receiverJid:(NSString *)receiverJid
+{
+    NSDictionary *params = @{
+        @"messagetext": @"JOIN_CALL",
+        @"join": callType,
+        @"self": @true,
+        @"confid": confid,
+        @"target": receiverJid
     };
     [self postRequestWithSubUrl:@"xmpp-rest" params:params];
 }
