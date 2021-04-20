@@ -212,6 +212,7 @@ NSMutableDictionary *voipTokenData = NULL;
     NSString *sound = [command.arguments objectAtIndex:10];
     NSString *conferenceId = [command.arguments objectAtIndex:11];
     NSString *receiverJid = [command.arguments objectAtIndex:12];
+    NSString *initiatorJid = [command.arguments objectAtIndex:13];
     
     if ([self hasActiveCall]){
         [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Skip VoIP for exist call"] callbackId:command.callbackId];
@@ -232,6 +233,7 @@ NSMutableDictionary *voipTokenData = NULL;
     [currentCallData setObject:[NSString stringWithFormat:@"%@_%@", initiatorName, callerId] forKey:@"initiatorId"];
     [currentCallData setObject:@"pending" forKey:@"callState"];
     [currentCallData setObject:receiverJid forKey:@"receiverJid"];
+    [currentCallData setObject:initiatorJid forKey:@"initiatorJid"];
 
     if (hasId) {
         [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
@@ -321,10 +323,12 @@ NSMutableDictionary *voipTokenData = NULL;
 
 - (void)endCall:(CDVInvokedUrlCommand*)command
 {
+    NSLog(@"[CordovaCall][endCall]");
     CDVPluginResult* pluginResult = nil;
     NSArray<CXCall *> *calls = self.callController.callObserver.calls;
 
     if([calls count] == 1) {
+        NSLog(@"[CordovaCall][endCall] has 1 active call");
         //[self.provider reportCallWithUUID:calls[0].UUID endedAtDate:nil reason:CXCallEndedReasonRemoteEnded];
         CXEndCallAction *endCallAction = [[CXEndCallAction alloc] initWithCallUUID:calls[0].UUID];
         CXTransaction *transaction = [[CXTransaction alloc] initWithAction:endCallAction];
@@ -336,6 +340,7 @@ NSMutableDictionary *voipTokenData = NULL;
         }];
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Call ended successfully"];
     } else {
+        NSLog(@"[CordovaCall][endCall] no call exists for you");
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"No call exists for you to connect"];
     }
     
@@ -354,6 +359,13 @@ NSMutableDictionary *voipTokenData = NULL;
         NSDictionary *callData = pendingCallFromRecents;
         CDVPluginResult* pluginResult = nil;
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:callData];
+        [pluginResult setKeepCallbackAsBool:YES];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    }
+    
+    if([eventName isEqual:@"answer"] && [self hasActiveCall] && [@"accepted" isEqualToString:[currentCallData valueForKey:@"callState"]]){
+        CDVPluginResult* pluginResult = nil;
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:currentCallData];
         [pluginResult setKeepCallbackAsBool:YES];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
     }
@@ -779,6 +791,7 @@ NSMutableDictionary *voipTokenData = NULL;
         [args addObject:sound];
         [args addObject:conferenceId];
         [args addObject:receiverJid];
+        [args addObject:initiatorJid];
         
         CDVInvokedUrlCommand* newCommand = [[CDVInvokedUrlCommand alloc] initWithArguments:args callbackId:@"" className:self.VoIPPushClassName methodName:self.VoIPPushMethodName];
         
