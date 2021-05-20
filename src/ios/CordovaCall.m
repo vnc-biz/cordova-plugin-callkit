@@ -236,7 +236,7 @@ NSMutableDictionary *voipTokenData = NULL;
     [currentCallData setObject:initiatorJid forKey:@"initiatorJid"];
 
     if (hasId) {
-        [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:[command.arguments objectAtIndex:1]];
+        [[NSUserDefaults standardUserDefaults] setObject:callerName forKey:callId];
         [[NSUserDefaults standardUserDefaults] synchronize];
     }
 
@@ -271,18 +271,13 @@ NSMutableDictionary *voipTokenData = NULL;
 
 - (void)sendCall:(CDVInvokedUrlCommand*)command
 {
-    BOOL hasId = ![[command.arguments objectAtIndex:2] isEqual:[NSNull null]];
     NSString *receiverName = [command.arguments objectAtIndex:0];
     NSString *receiverId = [command.arguments objectAtIndex:1];
-    NSString *callId = [command.arguments objectAtIndex:2];
-    NSUUID *callUUID = hasId?[[NSUUID alloc] initWithUUIDString:callId] : [[NSUUID alloc] init];
-    BOOL isVideoCall = [[command.arguments objectAtIndex:3] boolValue];
-    
+    NSUUID *callUUID = [[NSUUID alloc] init];
+    BOOL isVideoCall = [[command.arguments objectAtIndex:2] boolValue];
 
-    if (hasId) {
-        [[NSUserDefaults standardUserDefaults] setObject:receiverName forKey:[command.arguments objectAtIndex:1]];
-        [[NSUserDefaults standardUserDefaults] synchronize];
-    }
+    [[NSUserDefaults standardUserDefaults] setObject:receiverName forKey:callUUID.UUIDString];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 
     if (receiverId != nil && [receiverId length] > 0) {
         CXHandle *handle = [[CXHandle alloc] initWithType:CXHandleTypeGeneric value:receiverId];
