@@ -560,7 +560,13 @@ NSMutableDictionary *voipTokenData = NULL;
     CXCallUpdate *callUpdate = [[CXCallUpdate alloc] init];
     callUpdate.remoteHandle = action.handle;
     callUpdate.hasVideo = action.video;
-    callUpdate.localizedCallerName = action.contactIdentifier;
+    
+    NSString *callName = [[NSUserDefaults standardUserDefaults] stringForKey:action.callUUID.UUIDString];
+    if(!callName) {
+        callName = action.contactIdentifier;
+    }
+    
+    callUpdate.localizedCallerName = callName;
     callUpdate.supportsGrouping = NO;
     callUpdate.supportsUngrouping = NO;
     callUpdate.supportsHolding = NO;
